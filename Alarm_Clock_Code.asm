@@ -8,7 +8,7 @@ $MODEFM8LB1
 $LIST
 
 CLK           EQU 24000000 ; Microcontroller system crystal frequency in Hz
-TIMER0_RATE   EQU 554*2    ; Tone changed to C#
+TIMER0_RATE   EQU 544*2    ; Tone changed to C#
 TIMER0_RELOAD EQU ((65536-(CLK/(TIMER0_RATE))))
 TIMER2_RATE   EQU 1000     ; 1000Hz, for a timer tick of 1ms
 TIMER2_RELOAD EQU ((65536-(CLK/(TIMER2_RATE))))
@@ -160,11 +160,11 @@ Inc_Done:
 	mov Count1ms+1, a
 	; Increment the BCD counter
 	mov a, CurrentSecond
-	jnb UPDOWN, Timer2_ISR_decrement
+	;jnb UPDOWN, Timer2_ISR_decrement
 	add a, #0x01
 	sjmp Timer2_ISR_da
-Timer2_ISR_decrement:
-	add a, #0x99 ; Adding the 10-complement of -1 is like subtracting 1.
+;Timer2_ISR_decrement:
+	;add a, #0x99 ; Adding the 10-complement of -1 is like subtracting 1.
 Timer2_ISR_da:
 	da a ; Decimal adjust instruction.  Check datasheet for more details!
 	mov CurrentSecond, a
@@ -173,6 +173,40 @@ Timer2_ISR_done:
 	pop psw
 	pop acc
 	reti
+
+MinuteIncrement:
+	; Check if half second has passed
+	mov a, Count1ms+0
+	cjne a, #low(500), Timer2_ISR_done_minute ; Warning: this instruction changes the carry flag!
+	mov a, Count1ms+1
+	cjne a, #high(500), Timer2_ISR_done_minute
+	
+	; 500 milliseconds have passed.  Set a flag so the main program knows
+	setb half_seconds_flag ; Let the main program know half second had passed
+	cpl TR0 ; Enable/disable timer/counter 0. This line creates a beep-silence-beep-silence sound.
+	setb SOUND_OUT
+	; Reset to zero the milli-seconds counter, it is a 16-bit variable
+	clr a
+	mov Count1ms+0, a
+	mov Count1ms+1, a
+	; Increment the BCD counter
+	mov a, CurrentMinute
+	;jnb UPDOWN, Timer2_ISR_decrement
+	add a, #0x01
+	sjmp Timer2_ISR_da_minutes
+;Timer2_ISR_decrement:
+	;add a, #0x99 ; Adding the 10-complement of -1 is like subtracting 1.
+Timer2_ISR_da_minutes:
+	da a ; Decimal adjust instruction.  Check datasheet for more details!
+	mov CurrentMinute, a
+	
+Timer2_ISR_done_minute:
+	pop psw
+	pop acc
+	reti
+
+
+HourIncrement:
 
 ;---------------------------------;
 ; Hardware initialization         ;
@@ -254,5 +288,11 @@ loop_b:
     Display_BCD(CurrentMinute)
     Set_Cursor(1, 7)
     Display_BCD(CurrentSecond)
-    ljmp loop
+
+    mov a, CurrentSecond
+    cjne a, #0xC2, loop ; keep going if you haven't reached 60 yet, otherwise change minute place
+    clr a
+    mov a, CurrentMinute
+    cjne a, #0xC2, MinuteIncrement ; if minutes isn't 59 currently, then incrememnt minutes
+    ljmp HourIncrement
 END
