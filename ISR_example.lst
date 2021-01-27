@@ -6,7 +6,7 @@
                   7   $LIST
 0000              9   
 0000             10   CLK           EQU 24000000 ; Microcontroller system crystal frequency in Hz
-0000             11   TIMER0_RATE   EQU 554*2    ; The tone we want out is A major.  Interrupt rate must be twice as fast.
+0000             11   TIMER0_RATE   EQU 2000*2    ; The tone we want out is A mayor.  Interrupt rate must be twice as fast.
 0000             12   TIMER0_RELOAD EQU ((65536-(CLK/(TIMER0_RATE))))
 0000             13   TIMER2_RATE   EQU 1000     ; 1000Hz, for a timer tick of 1ms
 0000             14   TIMER2_RELOAD EQU ((65536-(CLK/(TIMER2_RATE))))
@@ -17,7 +17,7 @@
 0000             19   
 0000             20   ; Reset vector
 0000             21   org 0x0000
-0000 02018E      22       ljmp main
+0000 02018B      22       ljmp main
 0003             23   
 0003             24   ; External interrupt 0 vector (not used in this code)
 0003             25   org 0x0003
@@ -80,8 +80,8 @@
 00F2 54F0        80            anl a, #0xf0 ; Clear the bits for timer 0
 00F4 4401        81            orl a, #0x01 ; Configure timer 0 as 16-timer
 00F6 F589        82            mov TMOD, a
-00F8 758CAB      83            mov TH0, #high(TIMER0_RELOAD)
-00FB 758A64      84            mov TL0, #low(TIMER0_RELOAD)
+00F8 758CE8      83            mov TH0, #high(TIMER0_RELOAD)
+00FB 758A90      84            mov TL0, #low(TIMER0_RELOAD)
 00FE             85            ; Enable the timer and interrupts
 00FE D2A9        86       setb ET0  ; Enable timer 0 interrupt
 0100 D28C        87       setb TR0  ; Start timer 0
@@ -94,8 +94,8 @@
 0103             94            ;clr TF0  ; According to the data sheet this is done for us already.
 0103             95            ; Timer 0 can not autoreload so we need to reload it in the ISR:
 0103 C28C        96            clr TR0
-0105 758CAB      97            mov TH0, #high(TIMER0_RELOAD)
-0108 758A64      98            mov TL0, #low(TIMER0_RELOAD)
+0105 758CE8      97            mov TH0, #high(TIMER0_RELOAD)
+0108 758A90      98            mov TL0, #low(TIMER0_RELOAD)
 010B D28C        99            setb TR0
 010D B2A1       100            cpl SOUND_OUT ; Toggle the pin connected to the speaker
 010F 32         101            reti
@@ -175,39 +175,39 @@
 0162 7597DE     175            mov     WDTCN,#0xDE ; First key
 0165 7597AD     176            mov     WDTCN,#0xAD ; Second key
 0168            177   
-0168            178            ; Setup the stack start to the begining of memory only accesible with pointers
-0168 75817F     179       mov SP, #7FH
-016B            180       
-016B            181       ; Enable crossbar and weak pull-ups
-016B 75E100     182            mov     XBR0,#0x00
-016E 75E200     183            mov     XBR1,#0x00
-0171 75E340     184            mov     XBR2,#0x40
-0174            185   
-0174 75A602     186            mov     P2MDOUT,#0x02 ; make sound output pin (P2.1) push-pull
-0177            187            
-0177            188            ; Switch clock to 24 MHz
-0177 75A900     189            mov     CLKSEL, #0x00 ; 
-017A 75A900     190            mov     CLKSEL, #0x00 ; Second write to CLKSEL is required according to the user manual (page 77)
-017D            191            
-017D            192            ; Wait for 24 MHz clock to stabilze by checking bit DIVRDY in CLKSEL
-017D            193   waitclockstable:
-017D E5A9       194            mov a, CLKSEL
-017F 30E7FB     195            jnb acc.7, waitclockstable 
-0182            196   
-0182            197            ; Initialize the two timers used in this program
-0182 1200ED     198       lcall Timer0_Init
-0185 120110     199       lcall Timer2_Init
-0188            200   
-0188 120088     201       lcall LCD_4BIT ; Initialize LCD
-018B            202       
-018B D2AF       203       setb EA   ; Enable Global interrupts
-018D            204   
-018D 22         205            ret
-018E            206   
-018E            207   ;---------------------------------;
-018E            208   ; Main program.                   ;
-018E            209   ;---------------------------------;
-018E            210   main:
+0168            178       ; Enable crossbar and weak pull-ups
+0168 75E100     179            mov     XBR0,#0x00
+016B 75E200     180            mov     XBR1,#0x00
+016E 75E340     181            mov     XBR2,#0x40
+0171            182   
+0171 75A602     183            mov     P2MDOUT,#0x02 ; make sound output pin (P2.1) push-pull
+0174            184            
+0174            185            ; Switch clock to 24 MHz
+0174 75A900     186            mov     CLKSEL, #0x00 ; 
+0177 75A900     187            mov     CLKSEL, #0x00 ; Second write to CLKSEL is required according to the user manual (page 77)
+017A            188            
+017A            189            ; Wait for 24 MHz clock to stabilze by checking bit DIVRDY in CLKSEL
+017A            190   waitclockstable:
+017A E5A9       191            mov a, CLKSEL
+017C 30E7FB     192            jnb acc.7, waitclockstable 
+017F            193   
+017F            194            ; Initialize the two timers used in this program
+017F 1200ED     195       lcall Timer0_Init
+0182 120110     196       lcall Timer2_Init
+0185            197   
+0185 120088     198       lcall LCD_4BIT ; Initialize LCD
+0188            199       
+0188 D2AF       200       setb EA   ; Enable Global interrupts
+018A            201   
+018A 22         202            ret
+018B            203   
+018B            204   ;---------------------------------;
+018B            205   ; Main program.                   ;
+018B            206   ;---------------------------------;
+018B            207   main:
+018B            208            ; Setup the stack start to the begining of memory only accesible with pointers
+018B 75817F     209       mov SP, #7FH
+018E            210       
 018E 120162     211            lcall Initialize_All
 0191            212            
 0191            213       ; For convenience a few handy macros are included in 'LCD_4bit.inc':

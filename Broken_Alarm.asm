@@ -8,14 +8,20 @@ $MODEFM8LB1
 $LIST
 
 CLK           EQU 24000000 ; Microcontroller system crystal frequency in Hz
-TIMER0_RATE   EQU 2000*2    ; The tone we want out is A mayor.  Interrupt rate must be twice as fast.
+TIMER0_RATE   EQU 544*2    ; Tone changed to C#
 TIMER0_RELOAD EQU ((65536-(CLK/(TIMER0_RATE))))
 TIMER2_RATE   EQU 1000     ; 1000Hz, for a timer tick of 1ms
 TIMER2_RELOAD EQU ((65536-(CLK/(TIMER2_RATE))))
 
-BOOT_BUTTON   equ P3.7
+;TODO if time: Add power button
+AMPM_SET	  equ P0.0 ; switch between AM and PM
+CA_SWITCH     equ P0.1 ; switches buttons between controlling clock and alarm
+ALARM_OFF     equ P0.3 ; turns off alarm sound
 SOUND_OUT     equ P2.1
-UPDOWN        equ P0.0
+SECONDS       equ P2.3 ; adjust seconds
+MINUTES		  equ P2.6 ; adjust minutes
+HOURS		  equ P3.2 ; adjust hours
+BOOT_BUTTON   equ P3.7
 
 ; Reset vector
 org 0x0000
@@ -47,8 +53,18 @@ org 0x002B
 
 ; In the 8051 we can define direct access variables starting at location 0x30 up to location 0x7F
 dseg at 0x30
-Count1ms:     ds 2 ; Used to determine when half second has passed
-BCD_counter:  ds 1 ; The BCD counter incrememted in the ISR and displayed in the main loop
+Count1ms:        ds 2 ; Used to determine when half second has passed
+CurrentHour:     ds 2  
+CurrentMinute:   ds 2
+CurrentSecond:   ds 2
+CurrentAMPM:     ds 1
+AlarmHour:       ds 2
+AlarmMinute:     ds 2
+AlarmSecond:     ds 2
+AlarmAMPM:       ds 1
+is_AM: ds 1
+AM: db 'AM', 0 
+PM: db 'PM', 0
 
 ; In the 8051 we have variables that are 1-bit in size.  We can use the setb, clr, jb, and jnb
 ; instructions with these variables.  This is how you define a 1-bit variable:
@@ -69,7 +85,7 @@ $include(LCD_4bit.inc) ; A library of LCD related functions and utility macros
 $LIST
 
 ;                     1234567890123456    <- This helps determine the location of the counter
-Initial_Message:  db 'BCD_counter: xx ', 0
+Initial_Message:  db 'xx:xx:xx xx', 0 ; hour:minute:second am/pm
 
 ;-----------------------------------;
 ; Routine to initialize the timer 0 ;
@@ -152,20 +168,21 @@ Inc_Done:
 	mov Count1ms+0, a
 	mov Count1ms+1, a
 	; Increment the BCD counter
-	mov a, BCD_counter
-	jnb UPDOWN, Timer2_ISR_decrement
+	mov a, CurrentSecond
+	;jnb UPDOWN, Timer2_ISR_decrement
 	add a, #0x01
 	sjmp Timer2_ISR_da
-Timer2_ISR_decrement:
-	add a, #0x99 ; Adding the 10-complement of -1 is like subtracting 1.
+;Timer2_ISR_decrement:
+	;add a, #0x99 ; Adding the 10-complement of -1 is like subtracting 1.
 Timer2_ISR_da:
 	da a ; Decimal adjust instruction.  Check datasheet for more details!
-	mov BCD_counter, a
+	mov CurrentSecond, a
 	
 Timer2_ISR_done:
 	pop psw
 	pop acc
 	reti
+
 
 ;---------------------------------;
 ; Hardware initialization         ;
@@ -175,6 +192,9 @@ Initialize_All:
 	mov	WDTCN,#0xDE ; First key
 	mov	WDTCN,#0xAD ; Second key
 
+	; Setup the stack start to the begining of memory only accesible with pointers
+    mov SP, #7FH
+    
     ; Enable crossbar and weak pull-ups
 	mov	XBR0,#0x00
 	mov	XBR1,#0x00
@@ -201,21 +221,53 @@ waitclockstable:
 
 	ret
 
+MinuteIncrement:
+	clr a 
+	mov a, CurrentMinute
+	;jnb UPDOWN, Timer2_ISR_decrement
+	add a, #0x01
+	sjmp Timer2_ISR_da_minute
+;Timer2_ISR_decrement:
+	;add a, #0x99 ; Adding the 10-complement of -1 is like subtracting 1.
+Timer2_ISR_da_minute:
+	da a ; Decimal adjust instruction.  Check datasheet for more details!
+	mov CurrentMinute, a
+	ret
+
+HourIncrement:
+	clr a 
+	mov a, CurrentHour
+	;jnb UPDOWN, Timer2_ISR_decrement
+	add a, #0x01
+	sjmp Timer2_ISR_da_hour
+;Timer2_ISR_decrement:
+	;add a, #0x99 ; Adding the 10-complement of -1 is like subtracting 1.
+Timer2_ISR_da_hour:
+	da a ; Decimal adjust instruction.  Check datasheet for more details!
+	mov CurrentHour, a
+	ret
 ;---------------------------------;
 ; Main program.                   ;
 ;---------------------------------;
 main:
-	; Setup the stack start to the begining of memory only accesible with pointers
-    mov SP, #7FH
-    
 	lcall Initialize_All
 	
     ; For convenience a few handy macros are included in 'LCD_4bit.inc':
 	Set_Cursor(1, 1)
     Send_Constant_String(#Initial_Message)
+	Set_Cursor(1, 10)
+
     setb half_seconds_flag
-	mov BCD_counter, #0x00
-	
+	mov CurrentHour, #0x00
+    mov CurrentMinute, #0x00
+    mov CurrentSecond, #0x00
+    ; TODO don't know if AM/PM should be here yet
+
+	Set_Cursor(1,10)
+	Send_Constant_String(#AM) ; intialise with AM
+	mov is_AM, #1
+
+
 	; After initialization the program stays in this 'forever' loop
 loop:
 	jb BOOT_BUTTON, loop_a  ; if the 'BOOT' button is not pressed skip
@@ -229,14 +281,72 @@ loop:
 	mov Count1ms+0, a
 	mov Count1ms+1, a
 	; Now clear the BCD counter
-	mov BCD_counter, a
+	;mov CurrentHour, a
+    ;mov CurrentMinute, a
+    mov CurrentSecond, a
 	setb TR2                ; Start timer 2
-	sjmp loop_b             ; Display the new value
+	sjmp AMPM            ; Display the new value
 loop_a:
 	jnb half_seconds_flag, loop
+
+AMPM:
+	jb AMPM_SET, loop_b
+    ;Wait_Milli_Seconds(#50) ; not really necessary here
+    ;jb AMPM_SET, loop_b
+	jnb AMPM_SET, AMPM_Display ; otherwise, continue
+
+AMPM_Display:
+	mov a, is_AM
+	cjne a, #0, Display_PM ; if button is pressed and the flag is currently AM, set to PM
+	Set_Cursor(1,10)
+	Send_Constant_String(#AM)
+	;cpl AMPM_SET
+	mov is_AM, #1
+	;clr a
+	sjmp loop_b
+	
+
+Display_PM:
+	Set_Cursor(1,10)
+	Send_Constant_String(#PM)
+	;cpl AMPM_SET	
+	mov is_AM, #0
+	;clr a
+	sjmp loop_b
+
+
 loop_b:
+	;displaying block
     clr half_seconds_flag ; We clear this flag in the main loop, but it is set in the ISR for timer 2
-	Set_Cursor(1, 14)     ; the place in the LCD where we want the BCD counter value
-	Display_BCD(BCD_counter) ; This macro is also in 'LCD_4bit.inc'
-    ljmp loop
+	;Set_Cursor(1, 10)
+	;Display_BCD(AM)
+	Set_Cursor(1, 7)
+    Display_BCD(CurrentSecond)
+	Set_Cursor(1, 4)
+	Display_BCD(CurrentMinute)
+	Set_Cursor(1, 1)
+	Display_BCD(CurrentHour)
+	mov a, CurrentSecond
+    cjne a, #60H, IntermediateLoop ; keep going if you haven't reached 60 yet, otherwise change minute place
+	clr a
+	mov CurrentSecond, a
+	Set_Cursor(1, 7)
+	Display_BCD(CurrentSecond)
+	lcall MinuteIncrement
+	;mov a, CurrentMinute
+	;mov CurrentSecond, a
+	Set_Cursor(1, 4)     ; minutes place
+    Display_BCD(CurrentMinute)
+	clr a
+	mov a, CurrentMinute
+	cjne a, #60H, IntermediateLoop ; send to Hour Increment
+	lcall HourIncrement 
+	Set_Cursor(1, 1)     ; the place in the LCD where we want the BCD counter value
+	Display_BCD(CurrentHour) ; This macro is also in 'LCD_4bit.inc'
+
+
+
+IntermediateLoop:
+	ljmp loop
+
 END
