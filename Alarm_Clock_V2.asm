@@ -13,15 +13,9 @@ TIMER0_RELOAD EQU ((65536-(CLK/(TIMER0_RATE))))
 TIMER2_RATE   EQU 1000     ; 1000Hz, for a timer tick of 1ms
 TIMER2_RELOAD EQU ((65536-(CLK/(TIMER2_RATE))))
 
-;TODO if time: Add power button
-AMPM_SET	  equ P0.0 ; switch between AM and PM
-CA_SWITCH     equ P0.1 ; switches buttons between controlling clock and alarm
-ALARM_OFF     equ P0.3 ; turns off alarm sound
-SOUND_OUT     equ P2.1
-SECONDS       equ P2.3 ; adjust seconds
-MINUTES		  equ P2.6 ; adjust minutes
-HOURS		  equ P3.2 ; adjust hours
 BOOT_BUTTON   equ P3.7
+SOUND_OUT     equ P2.1
+UPDOWN        equ P0.0
 
 ; Reset vector
 org 0x0000
@@ -53,18 +47,13 @@ org 0x002B
 
 ; In the 8051 we can define direct access variables starting at location 0x30 up to location 0x7F
 dseg at 0x30
-Count1ms:        ds 2 ; Used to determine when half second has passed
-CurrentHour:     ds 2  
-CurrentMinute:   ds 2
-CurrentSecond:   ds 2
-CurrentAMPM:     ds 1
-AlarmHour:       ds 2
-AlarmMinute:     ds 2
-AlarmSecond:     ds 2
-AlarmAMPM:       ds 1
-is_AMPM_pressed: ds 1
-AM: db 'AM', 0 
-PM: db 'PM', 0
+Count1ms:      ds 2 ; Used to determine when half second has passed
+CurrentTime:   ds 5
+CurrentAMPM:    ds 1
+AlarmHour:     ds 2
+AlarmMinute:   ds 2
+AlarmSecond:   ds 2
+AlarmAMPM:      ds 1
 
 ; In the 8051 we have variables that are 1-bit in size.  We can use the setb, clr, jb, and jnb
 ; instructions with these variables.  This is how you define a 1-bit variable:
@@ -168,15 +157,15 @@ Inc_Done:
 	mov Count1ms+0, a
 	mov Count1ms+1, a
 	; Increment the BCD counter
-	mov a, CurrentSecond
+	mov a, CurrentTime
 	;jnb UPDOWN, Timer2_ISR_decrement
-	add a, #0x01
+	add a, #0x00001
 	sjmp Timer2_ISR_da
 ;Timer2_ISR_decrement:
 	;add a, #0x99 ; Adding the 10-complement of -1 is like subtracting 1.
 Timer2_ISR_da:
 	da a ; Decimal adjust instruction.  Check datasheet for more details!
-	mov CurrentSecond, a
+	mov CurrentTime, a
 	
 Timer2_ISR_done:
 	pop psw
@@ -220,69 +209,18 @@ waitclockstable:
     setb EA   ; Enable Global interrupts
 
 	ret
+	
 
-MinuteIncrement:
-	clr a 
-	mov a, CurrentMinute
-	;jnb UPDOWN, Timer2_ISR_decrement
-	add a, #0x01
-	sjmp Timer2_ISR_da_minute
-;Timer2_ISR_decrement:
-	;add a, #0x99 ; Adding the 10-complement of -1 is like subtracting 1.
-Timer2_ISR_da_minute:
-	da a ; Decimal adjust instruction.  Check datasheet for more details!
-	mov CurrentMinute, a
-	ret
-
-HourIncrement:
-	clr a 
-	mov a, CurrentHour
-	;jnb UPDOWN, Timer2_ISR_decrement
-	add a, #0x01
-	sjmp Timer2_ISR_da_hour
-;Timer2_ISR_decrement:
-	;add a, #0x99 ; Adding the 10-complement of -1 is like subtracting 1.
-Timer2_ISR_da_hour:
-	da a ; Decimal adjust instruction.  Check datasheet for more details!
-	mov CurrentHour, a
-	ret
-;---------------------------------;
-; Main program.                   ;
-;---------------------------------;
 main:
 	lcall Initialize_All
 	
     ; For convenience a few handy macros are included in 'LCD_4bit.inc':
 	Set_Cursor(1, 1)
     Send_Constant_String(#Initial_Message)
-	Set_Cursor(1, 10)
-	
-	
-	
-
     setb half_seconds_flag
-	mov CurrentHour, #0x00
-    mov CurrentMinute, #0x00
-    mov CurrentSecond, #0x00
+	mov CurrentTime, #0x00000
     ; TODO don't know if AM/PM should be here yet
-
-	; AM/PM setup
-	;setb is_AM_Displayed ; by default, display AM
-	jnb AMPM_SET, Display_AM
-	;jnb is_AM_Displayed, Display_PM
-	sjmp Display_PM
-
-Display_AM:
-	Set_Cursor(1,10)
-	Send_Constant_String(#AM)
-	sjmp loop
-	clr AMPM_SET
-
-Display_PM:
-	Set_Cursor(1,10)
-	Send_Constant_String(#PM)
-	sjmp loop
-
+	
 	; After initialization the program stays in this 'forever' loop
 loop:
 	jb BOOT_BUTTON, loop_a  ; if the 'BOOT' button is not pressed skip
@@ -298,44 +236,22 @@ loop:
 	; Now clear the BCD counter
 	;mov CurrentHour, a
     ;mov CurrentMinute, a
-    mov CurrentSecond, a
+    mov CurrentTime, a
 	setb TR2                ; Start timer 2
 	sjmp loop_b             ; Display the new value
 loop_a:
 	jnb half_seconds_flag, loop
 loop_b:
-	jnb AMPM_SET, Display_AM
-	;displaying block
     clr half_seconds_flag ; We clear this flag in the main loop, but it is set in the ISR for timer 2
-	;Set_Cursor(1, 10)
-	;Display_BCD(AM)
-	Set_Cursor(1, 7)
-    Display_BCD(CurrentSecond)
-	Set_Cursor(1, 4)
-	Display_BCD(CurrentMinute)
-	Set_Cursor(1, 1)
-	Display_BCD(CurrentHour)
-	mov a, CurrentSecond
-    cjne a, #60H, loop ; keep going if you haven't reached 60 yet, otherwise change minute place
-	clr a
-	mov CurrentSecond, a
-	Set_Cursor(1, 7)
-	Display_BCD(CurrentSecond)
-	lcall MinuteIncrement
-	;mov a, CurrentMinute
-	;mov CurrentSecond, a
-	Set_Cursor(1, 4)     ; minutes place
-    Display_BCD(CurrentMinute)
-	clr a
-	mov a, CurrentMinute
-	cjne a, #60H, IntermediateLoop ; send to Hour Increment
-	lcall HourIncrement 
-	Set_Cursor(1, 1)     ; the place in the LCD where we want the BCD counter value
-	Display_BCD(CurrentHour) ; This macro is also in 'LCD_4bit.inc'
-
-
-
-IntermediateLoop:
-	ljmp loop
-
+	Set_Cursor(2, 7)
+    Display_BCD(CurrentTime)
+    ljmp loop
 END
+
+    ;mov a, CurrentMinute
+    ;add a, #0x01
+    ;mov CurrentMinute, a
+    ;Display_BCD(CurrentMinute)
+    ;sjmp loop
+    ;ljmp HourIncrement
+;END
