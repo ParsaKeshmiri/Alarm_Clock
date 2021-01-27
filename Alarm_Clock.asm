@@ -84,8 +84,9 @@ $NOLIST
 $include(LCD_4bit.inc) ; A library of LCD related functions and utility macros
 $LIST
 
-;                     1234567890123456    <- This helps determine the location of the counter
-Initial_Message:  db 'xx:xx:xx xx', 0 ; hour:minute:second am/pm
+;                           1234567890123456    <- This helps determine the location of the counter
+Initial_Message_Point:  db 'xx:xx:xx xx   <-', 0 ; hour:minute:second am/pm
+Initial_Message:        db 'xx:xx:xx xx', 0
 
 ;-----------------------------------;
 ; Routine to initialize the timer 0 ;
@@ -254,6 +255,8 @@ main:
 	
     ; For convenience a few handy macros are included in 'LCD_4bit.inc':
 	Set_Cursor(1, 1)
+    Send_Constant_String(#Initial_Message_Point)
+    Set_Cursor(2, 1)
     Send_Constant_String(#Initial_Message)
 	Set_Cursor(1, 10)
 
@@ -261,9 +264,15 @@ main:
 	mov CurrentHour, #0x00
     mov CurrentMinute, #0x00
     mov CurrentSecond, #0x00
+    mov AlarmHour, #0x00
+    mov AlarmMinute, #0x00
+    mov AlarmSecond, #0x00
     ; TODO don't know if AM/PM should be here yet
 
 	Set_Cursor(1,10)
+	Send_Constant_String(#AM) ; intialise with AM
+
+    Set_Cursor(2,10)
 	Send_Constant_String(#AM) ; intialise with AM
 	mov is_AM, #1
 
@@ -285,11 +294,24 @@ loop:
     ;mov CurrentMinute, a
     mov CurrentSecond, a
 	setb TR2                ; Start timer 2
-	sjmp AMPM            ; Display the new value
+
+	sjmp Button_Interrupt            ; Display the new value
+
+Add_Hour:
+    lcall HourIncrement
+    ljmp loop_b
+
+Add_Minute:
+    lcall MinuteIncrement
+    ljmp loop_b
+
 loop_a:
 	jnb half_seconds_flag, loop
 
-AMPM:
+Button_Interrupt:
+    jnb HOURS, Add_Hour
+    jnb MINUTES, Add_Minute
+    jnb SECONDS, loop
 	jb AMPM_SET, loop_b
     ;Wait_Milli_Seconds(#50) ; not really necessary here
     ;jb AMPM_SET, loop_b
@@ -326,6 +348,14 @@ loop_b:
 	Display_BCD(CurrentMinute)
 	Set_Cursor(1, 1)
 	Display_BCD(CurrentHour)
+
+    Set_Cursor(2, 7)
+    Display_BCD(AlarmSecond)
+	Set_Cursor(2, 4)
+	Display_BCD(AlarmMinute)
+	Set_Cursor(2, 1)
+	Display_BCD(AlarmHour)
+
 	mov a, CurrentSecond
     cjne a, #60H, IntermediateLoop ; keep going if you haven't reached 60 yet, otherwise change minute place
 	clr a
@@ -345,7 +375,9 @@ loop_b:
 	Display_BCD(CurrentHour) ; This macro is also in 'LCD_4bit.inc'
 
 
-
+Intermediate_Adjust:
+    Wait_Milli_Seconds(#50) ; otherwise explodes
+    ljmp Button_Interrupt
 IntermediateLoop:
 	ljmp loop
 
