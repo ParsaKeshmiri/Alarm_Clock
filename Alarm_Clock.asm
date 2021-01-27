@@ -62,7 +62,8 @@ AlarmHour:       ds 2
 AlarmMinute:     ds 2
 AlarmSecond:     ds 2
 AlarmAMPM:       ds 1
-is_AM: ds 1
+is_AM:           ds 1
+is_Clock:        ds 1
 AM: db 'AM', 0 
 PM: db 'PM', 0
 
@@ -85,8 +86,9 @@ $include(LCD_4bit.inc) ; A library of LCD related functions and utility macros
 $LIST
 
 ;                           1234567890123456    <- This helps determine the location of the counter
-Initial_Message_Point:  db 'xx:xx:xx xx   <-', 0 ; hour:minute:second am/pm
+Point:                  db '<-', 0 ; hour:minute:second am/pm
 Initial_Message:        db 'xx:xx:xx xx', 0
+Clear:                  db '  ', 0
 
 ;-----------------------------------;
 ; Routine to initialize the timer 0 ;
@@ -254,11 +256,13 @@ main:
 	lcall Initialize_All
 	
     ; For convenience a few handy macros are included in 'LCD_4bit.inc':
-	Set_Cursor(1, 1)
-    Send_Constant_String(#Initial_Message_Point)
-    Set_Cursor(2, 1)
+	Set_Cursor(1,1)
     Send_Constant_String(#Initial_Message)
-	Set_Cursor(1, 10)
+    Set_Cursor(1,15)
+    Send_Constant_String(#Point)
+    Set_Cursor(2,1)
+    Send_Constant_String(#Initial_Message)
+	Set_Cursor(1,10)
 
     setb half_seconds_flag
 	mov CurrentHour, #0x00
@@ -275,6 +279,7 @@ main:
     Set_Cursor(2,10)
 	Send_Constant_String(#AM) ; intialise with AM
 	mov is_AM, #1
+    mov is_Clock, #1 ; as opposed to Alarm mode
 
 
 	; After initialization the program stays in this 'forever' loop
@@ -312,10 +317,37 @@ Button_Interrupt:
     jnb HOURS, Add_Hour
     jnb MINUTES, Add_Minute
     jnb SECONDS, loop
-	jb AMPM_SET, loop_b
+    jnb CA_SWITCH, SWITCH
+	jb AMPM_SET, Send_to_Loop_B
     ;Wait_Milli_Seconds(#50) ; not really necessary here
     ;jb AMPM_SET, loop_b
-	jnb AMPM_SET, AMPM_Display ; otherwise, continue
+	jnb AMPM_SET, to_AMPM_display ; otherwise, continue
+
+Send_to_Loop_B:
+    ljmp loop_b
+
+
+
+SWITCH:
+    mov a, is_Clock
+    cjne a, #0, Alarm_Mode
+    Set_Cursor(1, 15)
+    Send_Constant_String(#Point)
+    Set_Cursor(2, 15)
+    Send_Constant_String(#Clear)
+    mov is_Clock, #1
+    ljmp loop_b
+
+to_AMPM_display:
+    ljmp AMPM_Display
+
+Alarm_Mode:
+    Set_Cursor(1, 15)
+    Send_Constant_String(#Clear)
+    Set_Cursor(2, 15)
+    Send_Constant_String(#Point)
+    mov is_Clock, #0
+    ljmp loop_b
 
 AMPM_Display:
 	mov a, is_AM
