@@ -225,6 +225,8 @@ waitclockstable:
 	ret
 
 MinuteIncrement:
+    mov a, is_Clock
+    cjne a, #1, Alarm_MinuteIncrement ; change Alarm variable instead 
 	clr a 
 	mov a, CurrentMinute
 	;jnb UPDOWN, Timer2_ISR_decrement
@@ -237,7 +239,19 @@ Timer2_ISR_da_minute:
 	mov CurrentMinute, a
 	ret
 
+Alarm_MinuteIncrement:
+    clr a
+    mov a, AlarmMinute
+    add a, #0x01
+    da a
+    mov AlarmMinute, a
+    Set_Cursor(2,4)
+    Display_BCD(AlarmMinute)
+    ret
+
 HourIncrement:
+    mov a, is_Clock
+    cjne a, #1, Alarm_HourIncrement 
 	clr a 
 	mov a, CurrentHour
 	;jnb UPDOWN, Timer2_ISR_decrement
@@ -249,6 +263,16 @@ Timer2_ISR_da_hour:
 	da a ; Decimal adjust instruction.  Check datasheet for more details!
 	mov CurrentHour, a
 	ret
+
+Alarm_HourIncrement:
+    clr a
+    mov a, AlarmHour
+    add a, #0x01
+    da a
+    mov AlarmHour, a
+    Set_Cursor(2,1)
+    Display_BCD(AlarmHour)
+    ret
 ;---------------------------------;
 ; Main program.                   ;
 ;---------------------------------;

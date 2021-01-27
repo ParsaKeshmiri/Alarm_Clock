@@ -23,7 +23,7 @@
 0000             25   
 0000             26   ; Reset vector
 0000             27   org 0x0000
-0000 0201A6      28       ljmp main
+0000 0201E8      28       ljmp main
 0003             29   
 0003             30   ; External interrupt 0 vector (not used in this code)
 0003             31   org 0x0003
@@ -223,389 +223,427 @@
 018F 22         225            ret
 0190            226   
 0190            227   MinuteIncrement:
-0190 E4         228            clr a 
-0191 E534       229            mov a, CurrentMinute
-0193            230            ;jnb UPDOWN, Timer2_ISR_decrement
-0193 2401       231            add a, #0x01
-0195 8000       232            sjmp Timer2_ISR_da_minute
-0197            233   ;Timer2_ISR_decrement:
-0197            234            ;add a, #0x99 ; Adding the 10-complement of -1 is like subtracting 1.
-0197            235   Timer2_ISR_da_minute:
-0197 D4         236            da a ; Decimal adjust instruction.  Check datasheet for more details!
-0198 F534       237            mov CurrentMinute, a
-019A 22         238            ret
-019B            239   
-019B            240   HourIncrement:
-019B E4         241            clr a 
-019C E532       242            mov a, CurrentHour
-019E            243            ;jnb UPDOWN, Timer2_ISR_decrement
-019E 2401       244            add a, #0x01
-01A0 8000       245            sjmp Timer2_ISR_da_hour
-01A2            246   ;Timer2_ISR_decrement:
-01A2            247            ;add a, #0x99 ; Adding the 10-complement of -1 is like subtracting 1.
-01A2            248   Timer2_ISR_da_hour:
-01A2 D4         249            da a ; Decimal adjust instruction.  Check datasheet for more details!
-01A3 F532       250            mov CurrentHour, a
-01A5 22         251            ret
-01A6            252   ;---------------------------------;
-01A6            253   ; Main program.                   ;
-01A6            254   ;---------------------------------;
-01A6            255   main:
-01A6 120164     256            lcall Initialize_All
-01A9            257            
-01A9            258       ; For convenience a few handy macros are included in 'LCD_4bit.inc':
-01A9 C0E0       259            push acc
-01AB 7401       259            mov a, #1
-01AD 14         259            dec a
-01AE 1200C7     259            lcall ?Set_Cursor_1 ; Select column and row
-01B1 D0E0       259            pop acc
-01B3 C083       260            push dph
-01B5 C082       260            push dpl
-01B7 C0E0       260            push acc
-01B9 9000E5     260            mov dptr, #Initial_Message
-01BC 1200BA     260            lcall ?Send_Constant_String
-01BF D0E0       260            pop acc
-01C1 D082       260            pop dpl
-01C3 D083       260            pop dph
-01C5 C0E0       261            push acc
-01C7 740F       261            mov a, #15
-01C9 14         261            dec a
-01CA 1200C7     261            lcall ?Set_Cursor_1 ; Select column and row
-01CD D0E0       261            pop acc
-01CF C083       262            push dph
-01D1 C082       262            push dpl
-01D3 C0E0       262            push acc
-01D5 9000E2     262            mov dptr, #Point
-01D8 1200BA     262            lcall ?Send_Constant_String
-01DB D0E0       262            pop acc
-01DD D082       262            pop dpl
-01DF D083       262            pop dph
-01E1 C0E0       263            push acc
-01E3 7401       263            mov a, #1
-01E5 14         263            dec a
-01E6 1200C5     263            lcall ?Set_Cursor_2 ; Select column and row
-01E9 D0E0       263            pop acc
-01EB C083       264            push dph
-01ED C082       264            push dpl
-01EF C0E0       264            push acc
-01F1 9000E5     264            mov dptr, #Initial_Message
-01F4 1200BA     264            lcall ?Send_Constant_String
-01F7 D0E0       264            pop acc
-01F9 D082       264            pop dpl
-01FB D083       264            pop dph
-01FD C0E0       265            push acc
-01FF 740A       265            mov a, #10
-0201 14         265            dec a
-0202 1200C7     265            lcall ?Set_Cursor_1 ; Select column and row
-0205 D0E0       265            pop acc
-0207            266   
-0207 D200       267       setb half_seconds_flag
-0209 753200     268            mov CurrentHour, #0x00
-020C 753400     269       mov CurrentMinute, #0x00
-020F 753600     270       mov CurrentSecond, #0x00
-0212 753900     271       mov AlarmHour, #0x00
-0215 753B00     272       mov AlarmMinute, #0x00
-0218 753D00     273       mov AlarmSecond, #0x00
-021B            274       ; TODO don't know if AM/PM should be here yet
-021B            275   
-021B C0E0       276            push acc
-021D 740A       276            mov a, #10
-021F 14         276            dec a
-0220 1200C7     276            lcall ?Set_Cursor_1 ; Select column and row
-0223 D0E0       276            pop acc
-0225 C083       277            push dph
-0227 C082       277            push dpl
-0229 C0E0       277            push acc
-022B 90002E     277            mov dptr, #AM
-022E 1200BA     277            lcall ?Send_Constant_String
-0231 D0E0       277            pop acc
-0233 D082       277            pop dpl
-0235 D083       277            pop dph ; intialise with AM
-0237            278   
-0237 C0E0       279            push acc
-0239 740A       279            mov a, #10
-023B 14         279            dec a
-023C 1200C5     279            lcall ?Set_Cursor_2 ; Select column and row
-023F D0E0       279            pop acc
-0241            279   
-0241 C083       280            push dph
-0243 C082       280            push dpl
-0245 C0E0       280            push acc
-0247 90002E     280            mov dptr, #AM
-024A 1200BA     280            lcall ?Send_Constant_String
-024D D0E0       280            pop acc
-024F D082       280            pop dpl
-0251 D083       280            pop dph ; intialise with AM
-0253 754001     281            mov is_AM, #1
-0256 754101     282       mov is_Clock, #1 ; as opposed to Alarm mode
-0259            283   
-0259            284   
-0259            285            ; After initialization the program stays in this 'forever' loop
-0259            286   loop:
-0259 20B728     287            jb BOOT_BUTTON, loop_a  ; if the 'BOOT' button is not pressed skip
-025C C002       288            push AR2
-025E 7A32       288            mov R2, #50
-0260 12003F     288            lcall ?Wait_Milli_Seconds
-0263 D002       288            pop AR2         ; Debounce delay.  This macro is also in 'LCD_4bit.inc'
-0265 20B71C     289            jb BOOT_BUTTON, loop_a  ; if the 'BOOT' button is not pressed skip
-0268 30B7FD     290            jnb BOOT_BUTTON, $              ; Wait for button release.  The '$' means: jump to same instruction.
-026B            291            ; A valid press of the 'BOOT' button has been detected, reset the BCD counter.
-026B            292            ; But first stop timer 2 and reset the milli-seconds counter, to resync everything.
-026B C2CA       293            clr TR2                 ; Stop timer 2
-026D E4         294            clr a
-026E F530       295            mov Count1ms+0, a
-0270 F531       296            mov Count1ms+1, a
-0272            297            ; Now clear the BCD counter
-0272            298            ;mov CurrentHour, a
-0272            299       ;mov CurrentMinute, a
-0272 F536       300       mov CurrentSecond, a
-0274 D2CA       301            setb TR2                ; Start timer 2
-0276            302   
-0276 800F       303            sjmp Button_Interrupt            ; Display the new value
-0278            304   
-0278            305   Add_Hour:
-0278 12019B     306       lcall HourIncrement
-027B 020367     307       ljmp loop_b
-027E            308   
-027E            309   Add_Minute:
-027E 120190     310       lcall MinuteIncrement
-0281 020367     311       ljmp loop_b
-0284            312   
-0284            313   loop_a:
-0284 3000D2     314            jnb half_seconds_flag, loop
-0287            315   
-0287            316   Button_Interrupt:
-0287 30B2EE     317       jnb HOURS, Add_Hour
-028A 30A6F1     318       jnb MINUTES, Add_Minute
-028D 30A3C9     319       jnb SECONDS, loop
-0290 308109     320       jnb CA_SWITCH, SWITCH
-0293 208003     321            jb AMPM_SET, Send_to_Loop_B
-0296            322       ;Wait_Milli_Seconds(#50) ; not really necessary here
-0296            323       ;jb AMPM_SET, loop_b
-0296 308046     324            jnb AMPM_SET, to_AMPM_display ; otherwise, continue
-0299            325   
-0299            326   Send_to_Loop_B:
-0299 020367     327       ljmp loop_b
-029C            328   
-029C            329   
-029C            330   
-029C            331   SWITCH:
-029C E541       332       mov a, is_Clock
-029E B40041     333       cjne a, #0, Alarm_Mode
-02A1 C0E0       334            push acc
-02A3 740F       334            mov a, #15
-02A5 14         334            dec a
-02A6 1200C7     334            lcall ?Set_Cursor_1 ; Select column and row
-02A9 D0E0       334            pop acc
-02AB            334   
-02AB C083       335            push dph
-02AD C082       335            push dpl
-02AF C0E0       335            push acc
-02B1 9000E2     335            mov dptr, #Point
-02B4 1200BA     335            lcall ?Send_Constant_String
-02B7 D0E0       335            pop acc
-02B9 D082       335            pop dpl
-02BB D083       335            pop dph
-02BD C0E0       336            push acc
-02BF 740F       336            mov a, #15
-02C1 14         336            dec a
-02C2 1200C5     336            lcall ?Set_Cursor_2 ; Select column and row
-02C5 D0E0       336            pop acc
-02C7 C083       337            push dph
-02C9 C082       337            push dpl
-02CB C0E0       337            push acc
-02CD 9000F1     337            mov dptr, #Clear
-02D0 1200BA     337            lcall ?Send_Constant_String
-02D3 D0E0       337            pop acc
-02D5 D082       337            pop dpl
-02D7 D083       337            pop dph
-02D9 754101     338       mov is_Clock, #1
-02DC 020367     339       ljmp loop_b
-02DF            340   
-02DF            341   to_AMPM_display:
-02DF 020320     342       ljmp AMPM_Display
-02E2            343   
-02E2            344   Alarm_Mode:
-02E2 C0E0       345            push acc
-02E4 740F       345            mov a, #15
-02E6 14         345            dec a
-02E7 1200C7     345            lcall ?Set_Cursor_1 ; Select column and row
-02EA D0E0       345            pop acc
-02EC C083       346            push dph
-02EE C082       346            push dpl
-02F0 C0E0       346            push acc
-02F2 9000F1     346            mov dptr, #Clear
-02F5 1200BA     346            lcall ?Send_Constant_String
-02F8 D0E0       346            pop acc
-02FA D082       346            pop dpl
-02FC D083       346            pop dph
-02FE C0E0       347            push acc
-0300 740F       347            mov a, #15
-0302 14         347            dec a
-0303 1200C5     347            lcall ?Set_Cursor_2 ; Select column and row
-0306 D0E0       347            pop acc
-0308 C083       348            push dph
-030A C082       348            push dpl
-030C C0E0       348            push acc
-030E 9000E2     348            mov dptr, #Point
-0311 1200BA     348            lcall ?Send_Constant_String
-0314 D0E0       348            pop acc
-0316 D082       348            pop dpl
-0318 D083       348            pop dph
-031A 754100     349       mov is_Clock, #0
-031D 020367     350       ljmp loop_b
-0320            351   
-0320            352   AMPM_Display:
-0320 E540       353            mov a, is_AM
-0322 B40021     354            cjne a, #0, Display_PM ; if button is pressed and the flag is currently AM, set to PM
-0325 C0E0       355            push acc
-0327 740A       355            mov a, #10
-0329 14         355            dec a
-032A 1200C7     355            lcall ?Set_Cursor_1 ; Select column and row
-032D D0E0       355            pop acc
-032F C083       356            push dph
-0331 C082       356            push dpl
-0333 C0E0       356            push acc
-0335 90002E     356            mov dptr, #AM
-0338 1200BA     356            lcall ?Send_Constant_String
-033B D0E0       356            pop acc
-033D D082       356            pop dpl
-033F D083       356            pop dph
-0341            357            ;cpl AMPM_SET
-0341 754001     358            mov is_AM, #1
-0344            359            ;clr a
-0344 8021       360            sjmp loop_b
-0346            361            
-0346            362   
-0346            363   Display_PM:
-0346 C0E0       364            push acc
-0348 740A       364            mov a, #10
-034A 14         364            dec a
-034B 1200C7     364            lcall ?Set_Cursor_1 ; Select column and row
-034E D0E0       364            pop acc
-0350            364   
-0350 C083       365            push dph
-0352 C082       365            push dpl
-0354 C0E0       365            push acc
-0356 900031     365            mov dptr, #PM
-0359 1200BA     365            lcall ?Send_Constant_String
-035C D0E0       365            pop acc
-035E D082       365            pop dpl
-0360 D083       365            pop dph
-0362            366            ;cpl AMPM_SET   
-0362 754000     367            mov is_AM, #0
-0365            368            ;clr a
-0365 8000       369            sjmp loop_b
-0367            370   
-0367            371   
-0367            372   loop_b:
-0367            373            ;displaying block
-0367 C200       374       clr half_seconds_flag ; We clear this flag in the main loop, but it is set in the ISR for timer 2
-0369            375            ;Set_Cursor(1, 10)
-0369            376            ;Display_BCD(AM)
-0369 C0E0       377            push acc
-036B 7407       377            mov a, #7
-036D 14         377            dec a
-036E 1200C7     377            lcall ?Set_Cursor_1 ; Select column and row
-0371 D0E0       377            pop acc
-0373 C000       378            push ar0
-0375 A836       378            mov r0, CurrentSecond
-0377 1200CC     378            lcall ?Display_BCD
-037A D000       378            pop ar0
-037C C0E0       379            push acc
-037E 7404       379            mov a, #4
-0380 14         379            dec a
-0381 1200C7     379            lcall ?Set_Cursor_1 ; Select column and row
-0384 D0E0       379            pop acc
-0386 C000       380            push ar0
-0388 A834       380            mov r0, CurrentMinute
-038A 1200CC     380            lcall ?Display_BCD
-038D D000       380            pop ar0
-038F C0E0       381            push acc
-0391 7401       381            mov a, #1
-0393 14         381            dec a
-0394 1200C7     381            lcall ?Set_Cursor_1 ; Select column and row
-0397 D0E0       381            pop acc
-0399 C000       382            push ar0
-039B A832       382            mov r0, CurrentHour
-039D 1200CC     382            lcall ?Display_BCD
-03A0 D000       382            pop ar0
-03A2            383   
-03A2 C0E0       384            push acc
-03A4 7407       384            mov a, #7
-03A6 14         384            dec a
-03A7 1200C5     384            lcall ?Set_Cursor_2 ; Select column and row
-03AA D0E0       384            pop acc
-03AC C000       385            push ar0
-03AE A83D       385            mov r0, AlarmSecond
-03B0 1200CC     385            lcall ?Display_BCD
-03B3 D000       385            pop ar0
-03B5 C0E0       386            push acc
-03B7 7404       386            mov a, #4
-03B9 14         386            dec a
-03BA 1200C5     386            lcall ?Set_Cursor_2 ; Select column and row
-03BD D0E0       386            pop acc
-03BF C000       387            push ar0
-03C1 A83B       387            mov r0, AlarmMinute
-03C3 1200CC     387            lcall ?Display_BCD
-03C6 D000       387            pop ar0
-03C8 C0E0       388            push acc
-03CA 7401       388            mov a, #1
-03CC 14         388            dec a
-03CD 1200C5     388            lcall ?Set_Cursor_2 ; Select column and row
-03D0 D0E0       388            pop acc
-03D2 C000       389            push ar0
-03D4 A839       389            mov r0, AlarmHour
-03D6 1200CC     389            lcall ?Display_BCD
-03D9 D000       389            pop ar0
-03DB            390   
-03DB E536       391            mov a, CurrentSecond
-03DD B46054     392       cjne a, #60H, IntermediateLoop ; keep going if you haven't reached 60 yet, otherwise change minute place
-03E0 E4         393            clr a
-03E1 F536       394            mov CurrentSecond, a
-03E3 C0E0       395            push acc
-03E5 7407       395            mov a, #7
-03E7 14         395            dec a
-03E8 1200C7     395            lcall ?Set_Cursor_1 ; Select column and row
-03EB D0E0       395            pop acc
-03ED C000       396            push ar0
-03EF A836       396            mov r0, CurrentSecond
-03F1 1200CC     396            lcall ?Display_BCD
-03F4 D000       396            pop ar0
-03F6 120190     397            lcall MinuteIncrement
-03F9            398            ;mov a, CurrentMinute
-03F9            399            ;mov CurrentSecond, a
-03F9 C0E0       400            push acc
-03FB 7404       400            mov a, #4
-03FD 14         400            dec a
-03FE 1200C7     400            lcall ?Set_Cursor_1 ; Select column and row
-0401 D0E0       400            pop acc     ; minutes place
-0403 C000       401            push ar0
-0405 A834       401            mov r0, CurrentMinute
-0407 1200CC     401            lcall ?Display_BCD
-040A D000       401            pop ar0
-040C E4         402            clr a
-040D E534       403            mov a, CurrentMinute
-040F B46022     404            cjne a, #60H, IntermediateLoop ; send to Hour Increment
-0412 12019B     405            lcall HourIncrement 
-0415 C0E0       406            push acc
-0417 7401       406            mov a, #1
-0419 14         406            dec a
-041A 1200C7     406            lcall ?Set_Cursor_1 ; Select column and row
-041D D0E0       406            pop acc     ; the place in the LCD where we want the BCD counter value
-041F C000       407            push ar0
-0421 A832       407            mov r0, CurrentHour
-0423 1200CC     407            lcall ?Display_BCD
-0426 D000       407            pop ar0 ; This macro is also in 'LCD_4bit.inc'
-0428            408   
-0428            409   
-0428            410   Intermediate_Adjust:
-0428 C002       411            push AR2
-042A 7A32       411            mov R2, #50
-042C 12003F     411            lcall ?Wait_Milli_Seconds
-042F D002       411            pop AR2 ; otherwise explodes
-0431 020287     412       ljmp Button_Interrupt
-0434            413   IntermediateLoop:
-0434 020259     414            ljmp loop
-0437            415   
-0437            416   END
+0190 E541       228       mov a, is_Clock
+0192 B4010B     229       cjne a, #1, Alarm_MinuteIncrement ; change Alarm variable instead 
+0195 E4         230            clr a 
+0196 E534       231            mov a, CurrentMinute
+0198            232            ;jnb UPDOWN, Timer2_ISR_decrement
+0198 2401       233            add a, #0x01
+019A 8000       234            sjmp Timer2_ISR_da_minute
+019C            235   ;Timer2_ISR_decrement:
+019C            236            ;add a, #0x99 ; Adding the 10-complement of -1 is like subtracting 1.
+019C            237   Timer2_ISR_da_minute:
+019C D4         238            da a ; Decimal adjust instruction.  Check datasheet for more details!
+019D F534       239            mov CurrentMinute, a
+019F 22         240            ret
+01A0            241   
+01A0            242   Alarm_MinuteIncrement:
+01A0 E4         243       clr a
+01A1 E53B       244       mov a, AlarmMinute
+01A3 2401       245       add a, #0x01
+01A5 D4         246       da a
+01A6 F53B       247       mov AlarmMinute, a
+01A8 C0E0       248            push acc
+01AA 7404       248            mov a, #4
+01AC 14         248            dec a
+01AD 1200C5     248            lcall ?Set_Cursor_2 ; Select column and row
+01B0 D0E0       248            pop acc
+01B2 C000       249            push ar0
+01B4 A83B       249            mov r0, AlarmMinute
+01B6 1200CC     249            lcall ?Display_BCD
+01B9 D000       249            pop ar0
+01BB 22         250       ret
+01BC            251   
+01BC            252   HourIncrement:
+01BC E541       253       mov a, is_Clock
+01BE B4010B     254       cjne a, #1, Alarm_HourIncrement 
+01C1 E4         255            clr a 
+01C2 E532       256            mov a, CurrentHour
+01C4            257            ;jnb UPDOWN, Timer2_ISR_decrement
+01C4 2401       258            add a, #0x01
+01C6 8000       259            sjmp Timer2_ISR_da_hour
+01C8            260   ;Timer2_ISR_decrement:
+01C8            261            ;add a, #0x99 ; Adding the 10-complement of -1 is like subtracting 1.
+01C8            262   Timer2_ISR_da_hour:
+01C8 D4         263            da a ; Decimal adjust instruction.  Check datasheet for more details!
+01C9 F532       264            mov CurrentHour, a
+01CB 22         265            ret
+01CC            266   
+01CC            267   Alarm_HourIncrement:
+01CC E4         268       clr a
+01CD E539       269       mov a, AlarmHour
+01CF 2401       270       add a, #0x01
+01D1 D4         271       da a
+01D2 F539       272       mov AlarmHour, a
+01D4 C0E0       273            push acc
+01D6 7401       273            mov a, #1
+01D8 14         273            dec a
+01D9 1200C5     273            lcall ?Set_Cursor_2 ; Select column and row
+01DC D0E0       273            pop acc
+01DE C000       274            push ar0
+01E0 A839       274            mov r0, AlarmHour
+01E2 1200CC     274            lcall ?Display_BCD
+01E5 D000       274            pop ar0
+01E7 22         275       ret
+01E8            276   ;---------------------------------;
+01E8            277   ; Main program.                   ;
+01E8            278   ;---------------------------------;
+01E8            279   main:
+01E8 120164     280            lcall Initialize_All
+01EB            281            
+01EB            282       ; For convenience a few handy macros are included in 'LCD_4bit.inc':
+01EB C0E0       283            push acc
+01ED 7401       283            mov a, #1
+01EF 14         283            dec a
+01F0 1200C7     283            lcall ?Set_Cursor_1 ; Select column and row
+01F3 D0E0       283            pop acc
+01F5 C083       284            push dph
+01F7 C082       284            push dpl
+01F9 C0E0       284            push acc
+01FB 9000E5     284            mov dptr, #Initial_Message
+01FE 1200BA     284            lcall ?Send_Constant_String
+0201 D0E0       284            pop acc
+0203 D082       284            pop dpl
+0205 D083       284            pop dph
+0207 C0E0       285            push acc
+0209 740F       285            mov a, #15
+020B 14         285            dec a
+020C 1200C7     285            lcall ?Set_Cursor_1 ; Select column and row
+020F D0E0       285            pop acc
+0211 C083       286            push dph
+0213 C082       286            push dpl
+0215 C0E0       286            push acc
+0217 9000E2     286            mov dptr, #Point
+021A 1200BA     286            lcall ?Send_Constant_String
+021D D0E0       286            pop acc
+021F D082       286            pop dpl
+0221 D083       286            pop dph
+0223 C0E0       287            push acc
+0225 7401       287            mov a, #1
+0227 14         287            dec a
+0228 1200C5     287            lcall ?Set_Cursor_2 ; Select column and row
+022B D0E0       287            pop acc
+022D C083       288            push dph
+022F C082       288            push dpl
+0231 C0E0       288            push acc
+0233 9000E5     288            mov dptr, #Initial_Message
+0236 1200BA     288            lcall ?Send_Constant_String
+0239 D0E0       288            pop acc
+023B D082       288            pop dpl
+023D D083       288            pop dph
+023F C0E0       289            push acc
+0241 740A       289            mov a, #10
+0243 14         289            dec a
+0244 1200C7     289            lcall ?Set_Cursor_1 ; Select column and row
+0247 D0E0       289            pop acc
+0249            290   
+0249 D200       291       setb half_seconds_flag
+024B 753200     292            mov CurrentHour, #0x00
+024E 753400     293       mov CurrentMinute, #0x00
+0251 753600     294       mov CurrentSecond, #0x00
+0254 753900     295       mov AlarmHour, #0x00
+0257 753B00     296       mov AlarmMinute, #0x00
+025A 753D00     297       mov AlarmSecond, #0x00
+025D            298       ; TODO don't know if AM/PM should be here yet
+025D            299   
+025D C0E0       300            push acc
+025F 740A       300            mov a, #10
+0261 14         300            dec a
+0262 1200C7     300            lcall ?Set_Cursor_1 ; Select column and row
+0265 D0E0       300            pop acc
+0267 C083       301            push dph
+0269 C082       301            push dpl
+026B C0E0       301            push acc
+026D 90002E     301            mov dptr, #AM
+0270 1200BA     301            lcall ?Send_Constant_String
+0273 D0E0       301            pop acc
+0275 D082       301            pop dpl
+0277 D083       301            pop dph ; intialise with AM
+0279            302   
+0279 C0E0       303            push acc
+027B 740A       303            mov a, #10
+027D 14         303            dec a
+027E 1200C5     303            lcall ?Set_Cursor_2 ; Select column and row
+0281 D0E0       303            pop acc
+0283            303   
+0283 C083       304            push dph
+0285 C082       304            push dpl
+0287 C0E0       304            push acc
+0289 90002E     304            mov dptr, #AM
+028C 1200BA     304            lcall ?Send_Constant_String
+028F D0E0       304            pop acc
+0291 D082       304            pop dpl
+0293 D083       304            pop dph ; intialise with AM
+0295 754001     305            mov is_AM, #1
+0298 754101     306       mov is_Clock, #1 ; as opposed to Alarm mode
+029B            307   
+029B            308   
+029B            309            ; After initialization the program stays in this 'forever' loop
+029B            310   loop:
+029B 20B728     311            jb BOOT_BUTTON, loop_a  ; if the 'BOOT' button is not pressed skip
+029E C002       312            push AR2
+02A0 7A32       312            mov R2, #50
+02A2 12003F     312            lcall ?Wait_Milli_Seconds
+02A5 D002       312            pop AR2         ; Debounce delay.  This macro is also in 'LCD_4bit.inc'
+02A7 20B71C     313            jb BOOT_BUTTON, loop_a  ; if the 'BOOT' button is not pressed skip
+02AA 30B7FD     314            jnb BOOT_BUTTON, $              ; Wait for button release.  The '$' means: jump to same instruction.
+02AD            315            ; A valid press of the 'BOOT' button has been detected, reset the BCD counter.
+02AD            316            ; But first stop timer 2 and reset the milli-seconds counter, to resync everything.
+02AD C2CA       317            clr TR2                 ; Stop timer 2
+02AF E4         318            clr a
+02B0 F530       319            mov Count1ms+0, a
+02B2 F531       320            mov Count1ms+1, a
+02B4            321            ; Now clear the BCD counter
+02B4            322            ;mov CurrentHour, a
+02B4            323       ;mov CurrentMinute, a
+02B4 F536       324       mov CurrentSecond, a
+02B6 D2CA       325            setb TR2                ; Start timer 2
+02B8            326   
+02B8 800F       327            sjmp Button_Interrupt            ; Display the new value
+02BA            328   
+02BA            329   Add_Hour:
+02BA 1201BC     330       lcall HourIncrement
+02BD 0203A9     331       ljmp loop_b
+02C0            332   
+02C0            333   Add_Minute:
+02C0 120190     334       lcall MinuteIncrement
+02C3 0203A9     335       ljmp loop_b
+02C6            336   
+02C6            337   loop_a:
+02C6 3000D2     338            jnb half_seconds_flag, loop
+02C9            339   
+02C9            340   Button_Interrupt:
+02C9 30B2EE     341       jnb HOURS, Add_Hour
+02CC 30A6F1     342       jnb MINUTES, Add_Minute
+02CF 30A3C9     343       jnb SECONDS, loop
+02D2 308109     344       jnb CA_SWITCH, SWITCH
+02D5 208003     345            jb AMPM_SET, Send_to_Loop_B
+02D8            346       ;Wait_Milli_Seconds(#50) ; not really necessary here
+02D8            347       ;jb AMPM_SET, loop_b
+02D8 308046     348            jnb AMPM_SET, to_AMPM_display ; otherwise, continue
+02DB            349   
+02DB            350   Send_to_Loop_B:
+02DB 0203A9     351       ljmp loop_b
+02DE            352   
+02DE            353   
+02DE            354   
+02DE            355   SWITCH:
+02DE E541       356       mov a, is_Clock
+02E0 B40041     357       cjne a, #0, Alarm_Mode
+02E3 C0E0       358            push acc
+02E5 740F       358            mov a, #15
+02E7 14         358            dec a
+02E8 1200C7     358            lcall ?Set_Cursor_1 ; Select column and row
+02EB D0E0       358            pop acc
+02ED            358   
+02ED C083       359            push dph
+02EF C082       359            push dpl
+02F1 C0E0       359            push acc
+02F3 9000E2     359            mov dptr, #Point
+02F6 1200BA     359            lcall ?Send_Constant_String
+02F9 D0E0       359            pop acc
+02FB D082       359            pop dpl
+02FD D083       359            pop dph
+02FF C0E0       360            push acc
+0301 740F       360            mov a, #15
+0303 14         360            dec a
+0304 1200C5     360            lcall ?Set_Cursor_2 ; Select column and row
+0307 D0E0       360            pop acc
+0309 C083       361            push dph
+030B C082       361            push dpl
+030D C0E0       361            push acc
+030F 9000F1     361            mov dptr, #Clear
+0312 1200BA     361            lcall ?Send_Constant_String
+0315 D0E0       361            pop acc
+0317 D082       361            pop dpl
+0319 D083       361            pop dph
+031B 754101     362       mov is_Clock, #1
+031E 0203A9     363       ljmp loop_b
+0321            364   
+0321            365   to_AMPM_display:
+0321 020362     366       ljmp AMPM_Display
+0324            367   
+0324            368   Alarm_Mode:
+0324 C0E0       369            push acc
+0326 740F       369            mov a, #15
+0328 14         369            dec a
+0329 1200C7     369            lcall ?Set_Cursor_1 ; Select column and row
+032C D0E0       369            pop acc
+032E C083       370            push dph
+0330 C082       370            push dpl
+0332 C0E0       370            push acc
+0334 9000F1     370            mov dptr, #Clear
+0337 1200BA     370            lcall ?Send_Constant_String
+033A D0E0       370            pop acc
+033C D082       370            pop dpl
+033E D083       370            pop dph
+0340 C0E0       371            push acc
+0342 740F       371            mov a, #15
+0344 14         371            dec a
+0345 1200C5     371            lcall ?Set_Cursor_2 ; Select column and row
+0348 D0E0       371            pop acc
+034A C083       372            push dph
+034C C082       372            push dpl
+034E C0E0       372            push acc
+0350 9000E2     372            mov dptr, #Point
+0353 1200BA     372            lcall ?Send_Constant_String
+0356 D0E0       372            pop acc
+0358 D082       372            pop dpl
+035A D083       372            pop dph
+035C 754100     373       mov is_Clock, #0
+035F 0203A9     374       ljmp loop_b
+0362            375   
+0362            376   AMPM_Display:
+0362 E540       377            mov a, is_AM
+0364 B40021     378            cjne a, #0, Display_PM ; if button is pressed and the flag is currently AM, set to PM
+0367 C0E0       379            push acc
+0369 740A       379            mov a, #10
+036B 14         379            dec a
+036C 1200C7     379            lcall ?Set_Cursor_1 ; Select column and row
+036F D0E0       379            pop acc
+0371 C083       380            push dph
+0373 C082       380            push dpl
+0375 C0E0       380            push acc
+0377 90002E     380            mov dptr, #AM
+037A 1200BA     380            lcall ?Send_Constant_String
+037D D0E0       380            pop acc
+037F D082       380            pop dpl
+0381 D083       380            pop dph
+0383            381            ;cpl AMPM_SET
+0383 754001     382            mov is_AM, #1
+0386            383            ;clr a
+0386 8021       384            sjmp loop_b
+0388            385            
+0388            386   
+0388            387   Display_PM:
+0388 C0E0       388            push acc
+038A 740A       388            mov a, #10
+038C 14         388            dec a
+038D 1200C7     388            lcall ?Set_Cursor_1 ; Select column and row
+0390 D0E0       388            pop acc
+0392            388   
+0392 C083       389            push dph
+0394 C082       389            push dpl
+0396 C0E0       389            push acc
+0398 900031     389            mov dptr, #PM
+039B 1200BA     389            lcall ?Send_Constant_String
+039E D0E0       389            pop acc
+03A0 D082       389            pop dpl
+03A2 D083       389            pop dph
+03A4            390            ;cpl AMPM_SET   
+03A4 754000     391            mov is_AM, #0
+03A7            392            ;clr a
+03A7 8000       393            sjmp loop_b
+03A9            394   
+03A9            395   
+03A9            396   loop_b:
+03A9            397            ;displaying block
+03A9 C200       398       clr half_seconds_flag ; We clear this flag in the main loop, but it is set in the ISR for timer 2
+03AB            399            ;Set_Cursor(1, 10)
+03AB            400            ;Display_BCD(AM)
+03AB C0E0       401            push acc
+03AD 7407       401            mov a, #7
+03AF 14         401            dec a
+03B0 1200C7     401            lcall ?Set_Cursor_1 ; Select column and row
+03B3 D0E0       401            pop acc
+03B5 C000       402            push ar0
+03B7 A836       402            mov r0, CurrentSecond
+03B9 1200CC     402            lcall ?Display_BCD
+03BC D000       402            pop ar0
+03BE C0E0       403            push acc
+03C0 7404       403            mov a, #4
+03C2 14         403            dec a
+03C3 1200C7     403            lcall ?Set_Cursor_1 ; Select column and row
+03C6 D0E0       403            pop acc
+03C8 C000       404            push ar0
+03CA A834       404            mov r0, CurrentMinute
+03CC 1200CC     404            lcall ?Display_BCD
+03CF D000       404            pop ar0
+03D1 C0E0       405            push acc
+03D3 7401       405            mov a, #1
+03D5 14         405            dec a
+03D6 1200C7     405            lcall ?Set_Cursor_1 ; Select column and row
+03D9 D0E0       405            pop acc
+03DB C000       406            push ar0
+03DD A832       406            mov r0, CurrentHour
+03DF 1200CC     406            lcall ?Display_BCD
+03E2 D000       406            pop ar0
+03E4            407   
+03E4 C0E0       408            push acc
+03E6 7407       408            mov a, #7
+03E8 14         408            dec a
+03E9 1200C5     408            lcall ?Set_Cursor_2 ; Select column and row
+03EC D0E0       408            pop acc
+03EE C000       409            push ar0
+03F0 A83D       409            mov r0, AlarmSecond
+03F2 1200CC     409            lcall ?Display_BCD
+03F5 D000       409            pop ar0
+03F7 C0E0       410            push acc
+03F9 7404       410            mov a, #4
+03FB 14         410            dec a
+03FC 1200C5     410            lcall ?Set_Cursor_2 ; Select column and row
+03FF D0E0       410            pop acc
+0401 C000       411            push ar0
+0403 A83B       411            mov r0, AlarmMinute
+0405 1200CC     411            lcall ?Display_BCD
+0408 D000       411            pop ar0
+040A C0E0       412            push acc
+040C 7401       412            mov a, #1
+040E 14         412            dec a
+040F 1200C5     412            lcall ?Set_Cursor_2 ; Select column and row
+0412 D0E0       412            pop acc
+0414 C000       413            push ar0
+0416 A839       413            mov r0, AlarmHour
+0418 1200CC     413            lcall ?Display_BCD
+041B D000       413            pop ar0
+041D            414   
+041D E536       415            mov a, CurrentSecond
+041F B46054     416       cjne a, #60H, IntermediateLoop ; keep going if you haven't reached 60 yet, otherwise change minute place
+0422 E4         417            clr a
+0423 F536       418            mov CurrentSecond, a
+0425 C0E0       419            push acc
+0427 7407       419            mov a, #7
+0429 14         419            dec a
+042A 1200C7     419            lcall ?Set_Cursor_1 ; Select column and row
+042D D0E0       419            pop acc
+042F C000       420            push ar0
+0431 A836       420            mov r0, CurrentSecond
+0433 1200CC     420            lcall ?Display_BCD
+0436 D000       420            pop ar0
+0438 120190     421            lcall MinuteIncrement
+043B            422            ;mov a, CurrentMinute
+043B            423            ;mov CurrentSecond, a
+043B C0E0       424            push acc
+043D 7404       424            mov a, #4
+043F 14         424            dec a
+0440 1200C7     424            lcall ?Set_Cursor_1 ; Select column and row
+0443 D0E0       424            pop acc     ; minutes place
+0445 C000       425            push ar0
+0447 A834       425            mov r0, CurrentMinute
+0449 1200CC     425            lcall ?Display_BCD
+044C D000       425            pop ar0
+044E E4         426            clr a
+044F E534       427            mov a, CurrentMinute
+0451 B46022     428            cjne a, #60H, IntermediateLoop ; send to Hour Increment
+0454 1201BC     429            lcall HourIncrement 
+0457 C0E0       430            push acc
+0459 7401       430            mov a, #1
+045B 14         430            dec a
+045C 1200C7     430            lcall ?Set_Cursor_1 ; Select column and row
+045F D0E0       430            pop acc     ; the place in the LCD where we want the BCD counter value
+0461 C000       431            push ar0
+0463 A832       431            mov r0, CurrentHour
+0465 1200CC     431            lcall ?Display_BCD
+0468 D000       431            pop ar0 ; This macro is also in 'LCD_4bit.inc'
+046A            432   
+046A            433   
+046A            434   Intermediate_Adjust:
+046A C002       435            push AR2
+046C 7A32       435            mov R2, #50
+046E 12003F     435            lcall ?Wait_Milli_Seconds
+0471 D002       435            pop AR2 ; otherwise explodes
+0473 0202C9     436       ljmp Button_Interrupt
+0476            437   IntermediateLoop:
+0476 02029B     438            ljmp loop
+0479            439   
+0479            440   END
