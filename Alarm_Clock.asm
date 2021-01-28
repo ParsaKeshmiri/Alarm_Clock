@@ -63,6 +63,7 @@ AlarmMinute:     ds 2
 AlarmSecond:     ds 2
 AlarmAMPM:       ds 1
 is_AM:           ds 1
+is_Alarm_AM:     ds 1
 is_Clock:        ds 1
 AM: db 'AM', 0 
 PM: db 'PM', 0
@@ -303,6 +304,7 @@ main:
     Set_Cursor(2,10)
 	Send_Constant_String(#AM) ; intialise with AM
 	mov is_AM, #1
+    mov is_Alarm_AM, #1
     mov is_Clock, #1 ; as opposed to Alarm mode
 
 
@@ -374,6 +376,8 @@ Alarm_Mode:
     ljmp loop_b
 
 AMPM_Display:
+    mov a, is_Clock
+    cjne a, #1, Alarm_AMPM
 	mov a, is_AM
 	cjne a, #0, Display_PM ; if button is pressed and the flag is currently AM, set to PM
 	Set_Cursor(1,10)
@@ -381,7 +385,7 @@ AMPM_Display:
 	;cpl AMPM_SET
 	mov is_AM, #1
 	;clr a
-	sjmp loop_b
+	ljmp loop_b
 	
 
 Display_PM:
@@ -390,8 +394,26 @@ Display_PM:
 	;cpl AMPM_SET	
 	mov is_AM, #0
 	;clr a
-	sjmp loop_b
+	ljmp loop_b
 
+Alarm_AMPM:
+    mov a, is_Alarm_AM
+    cjne a, #0, Display_Alarm_PM ; if button is pressed and the flag is currently AM, set to PM
+	Set_Cursor(2,10)
+	Send_Constant_String(#AM)
+	;cpl AMPM_SET
+	mov is_Alarm_AM, #1
+	;clr a
+	ljmp loop_b
+	
+
+Display_Alarm_PM:
+	Set_Cursor(2,10)
+	Send_Constant_String(#PM)
+	;cpl AMPM_SET	
+	mov is_Alarm_AM, #0
+	;clr a
+	ljmp loop_b
 
 loop_b:
 	;displaying block
@@ -426,6 +448,10 @@ loop_b:
 	clr a
 	mov a, CurrentMinute
 	cjne a, #60H, IntermediateLoop ; send to Hour Increment
+    clr a
+    mov CurrentMinute, a
+    Set_Cursor(1, 4)
+    Display_BCD(CurrentMinute)
 	lcall HourIncrement 
 	Set_Cursor(1, 1)     ; the place in the LCD where we want the BCD counter value
 	Display_BCD(CurrentHour) ; This macro is also in 'LCD_4bit.inc'
