@@ -64,7 +64,9 @@ AlarmSecond:     ds 2
 AlarmAMPM:       ds 1
 is_AM:           ds 1
 is_Alarm_AM:     ds 1
+is_Alarm_Primed: ds 1
 is_Clock:        ds 1
+alarm_mask:      ds 1
 AM: db 'AM', 0 
 PM: db 'PM', 0
 
@@ -95,6 +97,8 @@ Clear:                  db '  ', 0
 ; Routine to initialize the timer 0 ;
 ;-----------------------------------;
 Timer0_Init:
+    Wait_Milli_Seconds(#127)
+    Wait_Milli_Seconds(#127)
 	orl CKCON0, #00000100B ; Timer 0 uses the system clock
 	mov a, TMOD
 	anl a, #0xf0 ; Clear the bits for timer 0
@@ -166,7 +170,7 @@ Inc_Done:
 	; 500 milliseconds have passed.  Set a flag so the main program knows
 	setb half_seconds_flag ; Let the main program know half second had passed
 	cpl TR0 ; Enable/disable timer/counter 0. This line creates a beep-silence-beep-silence sound.
-	setb SOUND_OUT
+	;setb SOUND_OUT
 	; Reset to zero the milli-seconds counter, it is a 16-bit variable
 	clr a
 	mov Count1ms+0, a
@@ -216,7 +220,6 @@ waitclockstable:
 	jnb acc.7, waitclockstable 
 
 	; Initialize the two timers used in this program
-    lcall Timer0_Init
     lcall Timer2_Init
 
     lcall LCD_4BIT ; Initialize LCD
@@ -255,7 +258,10 @@ HourIncrement:
     cjne a, #1, Alarm_HourIncrement 
 	clr a 
 	mov a, CurrentHour
-	;jnb UPDOWN, Timer2_ISR_decrement
+    cjne a, #12H, Increment_by_1 ; if it's at 12, next hour should be 1
+    mov a, #1
+    sjmp Timer2_ISR_da_hour
+Increment_by_1:
 	add a, #0x01
 	sjmp Timer2_ISR_da_hour
 ;Timer2_ISR_decrement:
@@ -268,6 +274,14 @@ Timer2_ISR_da_hour:
 Alarm_HourIncrement:
     clr a
     mov a, AlarmHour
+    cjne a, #12H, Increment_alarm_by_1
+    mov a, #1
+    da a
+    mov AlarmHour, a
+    Set_Cursor(2,1)
+    Display_BCD(AlarmHour)
+    ret
+Increment_alarm_by_1:
     add a, #0x01
     da a
     mov AlarmHour, a
@@ -278,9 +292,23 @@ Alarm_HourIncrement:
 ; Main program.                   ;
 ;---------------------------------;
 main:
-	lcall Initialize_All
+    lcall Initialize_All
+    ljmp setup
+
+setup:
+    mov CurrentHour, #0x12
+    mov CurrentMinute, #0x00
+    mov CurrentSecond, #0x00
+    mov AlarmHour, #0x12
+    mov AlarmMinute, #0x00
+    mov AlarmSecond, #0x00
+    ljmp main_2
+
+main_2:
+
 	
     ; For convenience a few handy macros are included in 'LCD_4bit.inc':
+    
 	Set_Cursor(1,1)
     Send_Constant_String(#Initial_Message)
     Set_Cursor(1,15)
@@ -290,13 +318,9 @@ main:
 	Set_Cursor(1,10)
 
     setb half_seconds_flag
-	mov CurrentHour, #0x00
-    mov CurrentMinute, #0x00
-    mov CurrentSecond, #0x00
-    mov AlarmHour, #0x00
-    mov AlarmMinute, #0x00
-    mov AlarmSecond, #0x00
-    ; TODO don't know if AM/PM should be here yet
+    mov is_Alarm_Primed, #0x0 ; this way, the alarm wont immediately go off when power is on
+    mov alarm_mask, #0x0
+	
 
 	Set_Cursor(1,10)
 	Send_Constant_String(#AM) ; intialise with AM
@@ -317,6 +341,8 @@ loop:
 	; A valid press of the 'BOOT' button has been detected, reset the BCD counter.
 	; But first stop timer 2 and reset the milli-seconds counter, to resync everything.
 	clr TR2                 ; Stop timer 2
+
+    ; check to see if alarm is hit
 	clr a
 	mov Count1ms+0, a
 	mov Count1ms+1, a
@@ -326,13 +352,41 @@ loop:
     mov CurrentSecond, a
 	setb TR2                ; Start timer 2
 
-	sjmp Button_Interrupt            ; Display the new value
+    mov a, CurrentHour
+    cjne a, #12H, Button_Interrupt
+    ljmp AMPM_Display
+	ljmp Button_Interrupt           
+
+Alarm:
+    ;mov a, alarm_mask
+    ;cjne a, #0, to_loop_b ; if mask is on, skip
+    ;clr a
+    ;mov a, #1
+    ;mov alarm_mask,
+    mov a, CurrentHour
+    cjne a, AlarmHour, loop
+    mov a, CurrentMinute
+    cjne a, AlarmMinute, loop
+    lcall Timer0_Init
+    mov is_Alarm_Primed, #0
+    ljmp loop
+
+to_loop_b:
+    ljmp loop_b
 
 Add_Hour:
     lcall HourIncrement
     ljmp loop_b
 
 Add_Minute:
+    clr a
+    mov a, CurrentMinute
+    cjne a, #59H, Go_to_minute_increment
+    clr a
+    mov CurrentMinute, a
+    ljmp loop_b
+
+Go_to_minute_increment:
     lcall MinuteIncrement
     ljmp loop_b
 
@@ -344,6 +398,7 @@ Button_Interrupt:
     jnb MINUTES, Add_Minute
     jnb SECONDS, loop
     jnb CA_SWITCH, SWITCH
+    jnb ALARM_OFF, turn_alarm_off
 	jb AMPM_SET, Send_to_Loop_B
     ;Wait_Milli_Seconds(#50) ; not really necessary here
     ;jb AMPM_SET, loop_b
@@ -352,7 +407,12 @@ Button_Interrupt:
 Send_to_Loop_B:
     ljmp loop_b
 
-
+turn_alarm_off:
+    clr a
+    mov a, #0
+    mov alarm_mask, a
+    mov is_Alarm_Primed, a
+    ljmp loop
 
 SWITCH:
     mov a, is_Clock
@@ -362,6 +422,7 @@ SWITCH:
     Set_Cursor(2, 15)
     Send_Constant_String(#Clear)
     mov is_Clock, #1
+    mov is_Alarm_Primed, #1  ; now that it's pressed at least 1, prime the alarm
     ljmp loop_b
 
 to_AMPM_display:
@@ -415,6 +476,9 @@ Display_Alarm_PM:
 	;clr a
 	ljmp loop_b
 
+to_Alarm:
+    ljmp Alarm
+
 loop_b:
 	;displaying block
     clr half_seconds_flag ; We clear this flag in the main loop, but it is set in the ISR for timer 2
@@ -433,6 +497,9 @@ loop_b:
 	Display_BCD(AlarmMinute)
 	Set_Cursor(2, 1)
 	Display_BCD(AlarmHour)
+
+    mov a, is_Alarm_Primed
+    cjne a, #0H, to_Alarm
 
 	mov a, CurrentSecond
     cjne a, #60H, IntermediateLoop ; keep going if you haven't reached 60 yet, otherwise change minute place
