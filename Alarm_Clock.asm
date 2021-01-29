@@ -258,10 +258,24 @@ HourIncrement:
     cjne a, #1, Alarm_HourIncrement 
 	clr a 
 	mov a, CurrentHour
-    cjne a, #12H, Increment_by_1 ; if it's at 12, next hour should be 1
+    cjne a, #12H, am_change ; if it's at 12, next hour should be 1
     mov a, #1
     sjmp Timer2_ISR_da_hour
+am_change:
+    cjne a, #11H, Increment_by_1
+    mov a, is_AM
+    cjne a, #1, pm_change ; if it's not am
+    Set_Cursor(1,10)
+    Send_Constant_String(#PM)
+    mov is_AM, #0
+    sjmp Increment_By_1
+pm_change:
+    Set_Cursor(1,10)
+    Send_Constant_String(#AM)
+    mov is_AM, #1
+    sjmp Increment_By_1
 Increment_by_1:
+    mov a, CurrentHour
 	add a, #0x01
 	sjmp Timer2_ISR_da_hour
 ;Timer2_ISR_decrement:
@@ -341,7 +355,8 @@ loop:
 	; A valid press of the 'BOOT' button has been detected, reset the BCD counter.
 	; But first stop timer 2 and reset the milli-seconds counter, to resync everything.
 	clr TR2                 ; Stop timer 2
-
+    clr TR0
+    clr SOUND_OUT
     ; check to see if alarm is hit
 	clr a
 	mov Count1ms+0, a
@@ -367,8 +382,12 @@ Alarm:
     cjne a, AlarmHour, loop
     mov a, CurrentMinute
     cjne a, AlarmMinute, loop
+    mov a, is_AM
+    cjne a, is_Alarm_AM, loop
+    mov a, alarm_mask
+    cjne a, #0, loop
     lcall Timer0_Init
-    mov is_Alarm_Primed, #0
+    ;mov is_Alarm_Primed, #0
     ljmp loop
 
 to_loop_b:
@@ -394,11 +413,11 @@ loop_a:
 	jnb half_seconds_flag, loop
 
 Button_Interrupt:
+    jnb ALARM_OFF, turn_alarm_off
     jnb HOURS, Add_Hour
     jnb MINUTES, Add_Minute
     jnb SECONDS, loop
     jnb CA_SWITCH, SWITCH
-    jnb ALARM_OFF, turn_alarm_off
 	jb AMPM_SET, Send_to_Loop_B
     ;Wait_Milli_Seconds(#50) ; not really necessary here
     ;jb AMPM_SET, loop_b
@@ -408,11 +427,16 @@ Send_to_Loop_B:
     ljmp loop_b
 
 turn_alarm_off:
+    mov a, is_Alarm_Primed
+    cjne a, #1, Send_to_Loop_B
+    clr tr0
+    clr SOUND_OUT
     clr a
-    mov a, #0
+    mov a, #1
     mov alarm_mask, a
+    mov a, #0
     mov is_Alarm_Primed, a
-    ljmp loop
+    ljmp loop_b
 
 SWITCH:
     mov a, is_Clock
@@ -422,7 +446,7 @@ SWITCH:
     Set_Cursor(2, 15)
     Send_Constant_String(#Clear)
     mov is_Clock, #1
-    mov is_Alarm_Primed, #1  ; now that it's pressed at least 1, prime the alarm
+    mov is_Alarm_Primed, #1  ; now that it's pressed at least once, prime the alarm
     ljmp loop_b
 
 to_AMPM_display:
@@ -497,6 +521,8 @@ loop_b:
 	Display_BCD(AlarmMinute)
 	Set_Cursor(2, 1)
 	Display_BCD(AlarmHour)
+
+    clr tr0
 
     mov a, is_Alarm_Primed
     cjne a, #0H, to_Alarm
