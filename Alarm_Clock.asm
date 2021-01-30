@@ -66,6 +66,7 @@ is_AM:           ds 1
 is_Alarm_AM:     ds 1
 is_Alarm_Primed: ds 1
 is_Clock:        ds 1
+is_Natural_Increment: ds 1
 alarm_mask:      ds 1
 AM: db 'AM', 0 
 PM: db 'PM', 0
@@ -231,6 +232,9 @@ waitclockstable:
 MinuteIncrement:
     mov a, is_Clock
     cjne a, #1, Alarm_MinuteIncrement ; change Alarm variable instead 
+    sjmp MinuteIncrement_2
+
+MinuteIncrement_2:
 	clr a 
 	mov a, CurrentMinute
 	;jnb UPDOWN, Timer2_ISR_decrement
@@ -241,9 +245,12 @@ MinuteIncrement:
 Timer2_ISR_da_minute:
 	da a ; Decimal adjust instruction.  Check datasheet for more details!
 	mov CurrentMinute, a
+    mov is_Natural_Increment, #0
 	ret
 
 Alarm_MinuteIncrement:
+    mov a, is_Natural_Increment
+    cjne a, #0, MinuteIncrement_2 ; if natural increment and alarm set, change the hour
     clr a
     mov a, AlarmMinute
     add a, #0x01
@@ -251,6 +258,7 @@ Alarm_MinuteIncrement:
     mov AlarmMinute, a
     Set_Cursor(2,4)
     Display_BCD(AlarmMinute)
+    mov is_Natural_Increment, #0
     ret
 
 HourIncrement:
@@ -344,6 +352,7 @@ main_2:
 	mov is_AM, #1
     mov is_Alarm_AM, #1
     mov is_Clock, #1 ; as opposed to Alarm mode
+    mov is_Natural_Increment, #0
 
 
 	; After initialization the program stays in this 'forever' loop
@@ -379,16 +388,19 @@ Alarm:
     ;mov a, #1
     ;mov alarm_mask,
     mov a, CurrentHour
-    cjne a, AlarmHour, loop
+    cjne a, AlarmHour, to_main_4
     mov a, CurrentMinute
-    cjne a, AlarmMinute, loop
+    cjne a, AlarmMinute, to_main_4
     mov a, is_AM
-    cjne a, is_Alarm_AM, loop
+    cjne a, is_Alarm_AM, to_main_4
     mov a, alarm_mask
-    cjne a, #0, loop
+    cjne a, #0, to_main_4
     lcall Timer0_Init
     ;mov is_Alarm_Primed, #0
-    ljmp loop
+    ljmp main_4
+
+to_main_4:
+    ljmp main_4
 
 to_loop_b:
     ljmp loop_b
@@ -523,9 +535,13 @@ loop_b:
 	Display_BCD(AlarmHour)
 
     clr tr0
-
+    
     mov a, is_Alarm_Primed
     cjne a, #0H, to_Alarm
+    sjmp main_4
+
+main_4:
+    mov is_Natural_Increment, #0
 
 	mov a, CurrentSecond
     cjne a, #60H, IntermediateLoop ; keep going if you haven't reached 60 yet, otherwise change minute place
@@ -533,6 +549,7 @@ loop_b:
 	mov CurrentSecond, a
 	Set_Cursor(1, 7)
 	Display_BCD(CurrentSecond)
+    mov is_Natural_Increment, #1
 	lcall MinuteIncrement
 	;mov a, CurrentMinute
 	;mov CurrentSecond, a
